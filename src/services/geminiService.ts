@@ -22,7 +22,7 @@ export async function sendChatRequest(
     overrideModel?: string, // New Parameter
     overrideSource?: 'gemini' | 'openrouter' | 'proxy', // NEW: Override Source
     overrideConnection?: { url: string; password?: string; legacyMode?: boolean } // NEW: Override Connection
-): Promise<{ response: GenerateContentResponse }> {
+): Promise<{ response: GenerateContentResponse, reasoning?: string }> {
     const connection = getConnectionSettings();
     const source = overrideSource || connection.source;
 
@@ -37,8 +37,8 @@ export async function sendChatRequest(
     }
 
     if (source === 'openrouter') {
-        const text = await callOpenRouter(targetModel, fullPrompt, settings);
-        return { response: { text } as GenerateContentResponse };
+        const result = await callOpenRouter(targetModel, fullPrompt, settings);
+        return { response: { text: result.text } as GenerateContentResponse, reasoning: result.reasoning };
     }
 
     // Gemini Native
@@ -57,7 +57,7 @@ export async function* sendChatRequestStream(
     overrideModel?: string, // NEW: Specific model for Arena mode or testing
     overrideSource?: 'gemini' | 'openrouter' | 'proxy', // NEW: Override Source
     overrideConnection?: { url: string; password?: string; legacyMode?: boolean } // NEW: Override Connection
-): AsyncGenerator<string, void, unknown> {
+): AsyncGenerator<{text: string; reasoning?: string}, void, unknown> {
     const connection = getConnectionSettings();
     const source = overrideSource || connection.source;
     
@@ -68,7 +68,7 @@ export async function* sendChatRequestStream(
     if (source === 'proxy') {
         const stream = callProxyStream(targetModel, fullPrompt, settings, signal, overrideConnection);
         for await (const chunk of stream) {
-            yield chunk;
+            yield { text: chunk };
         }
         return;
     }
@@ -76,15 +76,8 @@ export async function* sendChatRequestStream(
     // 2. Handle OpenRouter (via fallback or specific implementation if added later)
     if (source === 'openrouter') {
         if (signal?.aborted) throw new Error("Aborted");
-        // OpenRouter streaming not fully implemented in this simplified version, falling back to non-streaming or generic proxy logic if applicable.
-        // But wait, callOpenRouter is non-streaming. 
-        // If we want streaming for OpenRouter, we need callOpenRouterStream.
-        // For now, let's assume non-streaming fallback or generic handling.
-        // Actually, previous code had: if (source !== 'gemini') { ... }
-        // Let's keep that structure but respect source.
-        
         const result = await sendChatRequest(fullPrompt, settings, overrideModel, source);
-        yield result.response.text || "";
+        yield { text: result.response.text || "", reasoning: result.reasoning };
         return;
     }
 
@@ -105,7 +98,7 @@ export async function* sendChatRequestStream(
                 if (signal?.aborted) {
                     break; 
                 }
-                yield chunk.text || "";
+                yield { text: chunk.text || "" }; // Google Gen AI SDK stream reasoning chunks can be handled here if supported later
             }
         } catch (error) {
             if (signal?.aborted) {

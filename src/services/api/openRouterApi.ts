@@ -19,7 +19,7 @@ export const callOpenRouter = async (
     model: string, 
     prompt: string, 
     settings: SillyTavernPreset
-): Promise<string> => {
+): Promise<{text: string; reasoning?: string}> => {
     const endpoint = "https://openrouter.ai/api/v1/chat/completions";
     const headers = getOpenRouterHeaders();
     
@@ -29,7 +29,8 @@ export const callOpenRouter = async (
         temperature: settings.temp,
         top_p: settings.top_p,
         max_tokens: settings.max_tokens,
-        stop: settings.stopping_strings
+        stop: settings.stopping_strings,
+        include_reasoning: true // Optional: OpenRouter reasoning request
     };
 
     // --- NETWORK LOGGING ---
@@ -56,7 +57,10 @@ export const callOpenRouter = async (
     }
 
     const data = await response.json();
-    return data.choices[0]?.message?.content || '';
+    return {
+        text: data.choices[0]?.message?.content || '',
+        reasoning: data.choices[0]?.message?.reasoning_content || undefined
+    };
 };
 
 export async function getOpenRouterModels(): Promise<OpenRouterModel[]> {

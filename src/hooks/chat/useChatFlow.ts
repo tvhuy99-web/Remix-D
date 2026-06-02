@@ -382,7 +382,7 @@ export const useChatFlow = () => {
             let lastUpdateTime = Date.now();
             for await (const chunk of stream) {
                 if (ac.signal.aborted) break;
-                slotContent += chunk;
+                slotContent += chunk.text;
                 
                 const now = Date.now();
                 if (now - lastUpdateTime > 100) {
@@ -634,7 +634,7 @@ export const useChatFlow = () => {
                             let lastUpdateTime = Date.now();
                             for await (const chunk of stream) {
                                 if (ac.signal.aborted) break;
-                                slotContent += chunk;
+                                slotContent += chunk.text;
                                 
                                 const now = Date.now();
                                 if (now - lastUpdateTime > 100) {
@@ -698,25 +698,27 @@ export const useChatFlow = () => {
                     if (shouldStream) {
                         const stream = sendChatRequestStream(fullPrompt, freshState.preset, ac.signal);
                         
+                        let accumulatedReasoning = "";
                         let lastUpdateTime = Date.now();
                         for await (const chunk of stream) {
                             if (ac.signal.aborted) break;
-                            accumulatedText += chunk;
+                            accumulatedText += chunk.text;
+                            if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                             
                             const now = Date.now();
                             if (now - lastUpdateTime > 100) {
-                                state.updateMessage(aiMsg.id, { content: accumulatedText });
+                                state.updateMessage(aiMsg.id, { content: accumulatedText, reasoning_content: accumulatedReasoning || undefined });
                                 lastUpdateTime = now;
                             }
                         }
                         
                         // Final update to ensure no chunks are missed
-                        state.updateMessage(aiMsg.id, { content: accumulatedText });
+                        state.updateMessage(aiMsg.id, { content: accumulatedText, reasoning_content: accumulatedReasoning || undefined });
                     } else {
                         state.updateMessage(aiMsg.id, { content: "..." });
                         const result = await sendChatRequest(fullPrompt, freshState.preset);
                         accumulatedText = result.response.text || "";
-                        state.updateMessage(aiMsg.id, { content: accumulatedText });
+                        state.updateMessage(aiMsg.id, { content: accumulatedText, reasoning_content: result.reasoning });
                     }
 
                     // TRIGGER POST PROCESSING

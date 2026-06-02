@@ -327,6 +327,11 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         }
 
         const foundThinkingBlocks: { label: string; content: string }[] = [];
+        
+        if (message.reasoning_content) {
+            foundThinkingBlocks.push({ label: 'Suy nghĩ', content: message.reasoning_content });
+        }
+
         const thinkingRegex = /<(thinking|thinking_requirements|step_outline|plan|inner_monologue)>([\s\S]*?)<\/\1>/gi;
         
         let match;

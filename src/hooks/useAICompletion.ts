@@ -45,7 +45,7 @@ export const useAICompletion = () => {
         try {
             const stream = sendChatRequestStream(fullPrompt, settings);
             for await (const chunk of stream) {
-                yield chunk;
+                yield chunk.text;
             }
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Lỗi không xác định khi gọi AI Stream.';

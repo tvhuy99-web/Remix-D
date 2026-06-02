@@ -26,6 +26,7 @@ export interface ChatMessage {
     id: string;
     role: 'user' | 'model' | 'system';
     content: string;
+    reasoning_content?: string;
     interactiveHtml?: string;
     originalRawContent?: string;
     contextState?: Record<string, any>; // Variables snapshot
