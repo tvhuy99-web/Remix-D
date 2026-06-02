@@ -73,13 +73,24 @@ export const callProxy = async (
     if (!response.ok) {
         let errText = `Proxy Error: ${response.status}`;
         try {
-            const data = await response.json();
-            if (data.error) errText = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
-        } catch {
-            try {
-                const text = await response.text();
-                if (text) errText = text;
-            } catch {}
+            const textResponse = await response.text();
+            if (textResponse) {
+                try {
+                    const data = JSON.parse(textResponse);
+                    if (data.error) {
+                        errText = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+                    } else if (data.message) {
+                        errText = data.message;
+                    } else {
+                        errText = textResponse; // The whole JSON string if error field not found
+                    }
+                } catch {
+                    // Not JSON, just use text
+                    errText = textResponse;
+                }
+            }
+        } catch (e) {
+            console.error("Failed to read error response", e);
         }
         throw new Error(errText);
     }
@@ -201,13 +212,24 @@ export async function* callProxyStream(
     if (!response.ok) {
         let errText = `Proxy Stream Error: ${response.status}`;
         try {
-            const data = await response.json();
-            if (data.error) errText = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
-        } catch {
-            try {
-                const text = await response.text();
-                if (text) errText = text;
-            } catch {}
+            const textResponse = await response.text();
+            if (textResponse) {
+                try {
+                    const data = JSON.parse(textResponse);
+                    if (data.error) {
+                        errText = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+                    } else if (data.message) {
+                        errText = data.message;
+                    } else {
+                        errText = textResponse; // The whole JSON string if error field not found
+                    }
+                } catch {
+                    // Not JSON, just use text
+                    errText = textResponse;
+                }
+            }
+        } catch (e) {
+            console.error("Failed to read error response", e);
         }
         throw new Error(errText);
     }
@@ -294,10 +316,12 @@ export const fetchProxyModels = async (
         }
 
         let data;
+        const textResponse = await response.text();
         try {
-            data = await response.json();
+            data = JSON.parse(textResponse);
         } catch (e: any) {
-            throw new Error("Dữ liệu trả về không phải là JSON hợp lệ. Có thể URL Proxy sai hoặc trả về trang web thay vì API.");
+            console.error("Proxy returned non-JSON:", textResponse);
+            throw new Error(`Dữ liệu trả về không phải là JSON. Lỗi HTTP ${response.status}. Có thể URL Proxy sai hoặc trả về trang web.`);
         }
         
         // Handle standard OpenAI response format: { object: 'list', data: [...] }

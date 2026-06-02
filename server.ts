@@ -28,17 +28,22 @@ async function startServer() {
             const fetchOptions: RequestInit = {
                 method: method || "GET",
                 headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                     ...headers,
                     "Accept-Encoding": "identity" // Disable compression to avoid undici Z_DATA_ERROR
                 },
             };
 
+            console.log(`[Proxy] Forwarding ${fetchOptions.method} request to: ${url}`);
+            
             // Only add body for POST/PUT/PATCH methods, and ensure it's stringified
             if (['POST', 'PUT', 'PATCH'].includes(fetchOptions.method as string) && body) {
                 fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
+                console.log(`[Proxy] Request body length: ${fetchOptions.body.length}`);
             }
 
             const response = await fetch(url, fetchOptions);
+            console.log(`[Proxy] Response status: ${response.status} from ${url}`);
 
             // Forward the status code
             res.status(response.status);
