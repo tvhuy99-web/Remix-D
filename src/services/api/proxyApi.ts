@@ -6,6 +6,9 @@ import { useChatStore } from '../../store/chatStore';
 
 const getCleanBaseUrl = (url: string) => {
     let clean = url.trim().replace(/\/$/, '');
+    if (clean && !/^https?:\/\//i.test(clean)) {
+        clean = 'http://' + clean;
+    }
     if (clean.endsWith('/v1/chat/completions')) {
         clean = clean.replace(/\/v1\/chat\/completions$/, '');
     } else if (clean.endsWith('/v1/models')) {
@@ -290,7 +293,12 @@ export const fetchProxyModels = async (
             throw new Error(`Failed to fetch models: ${response.status}`);
         }
 
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+        } catch (e: any) {
+            throw new Error("Dữ liệu trả về không phải là JSON hợp lệ. Có thể URL Proxy sai hoặc trả về trang web thay vì API.");
+        }
         
         // Handle standard OpenAI response format: { object: 'list', data: [...] }
         const list = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
