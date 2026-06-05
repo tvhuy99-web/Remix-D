@@ -8,6 +8,22 @@ export const forwardFetch = async (
         return fetch(url, options as RequestInit);
     }
 
+    // Bypass proxy with direct fetch for CORS-safe public APIs to avoid 10-second edge timeouts (e.g., Netlify, Deno Deploy)
+    const isPublicCorsSafeApi = 
+        url.includes('openrouter.ai') || 
+        url.includes('generativelanguage.googleapis.com');
+
+    if (isPublicCorsSafeApi) {
+        try {
+            console.log(`[Direct Fetch] Connecting directly to public CORS-safe API: ${url}`);
+            const directResponse = await fetch(url, options as RequestInit);
+            return directResponse;
+        } catch (err) {
+            console.warn(`[Direct Fetch] Direct connection to ${url} failed. Falling back to edge proxy.`, err);
+            // Fall through to proxy logic below
+        }
+    }
+
     const payload = {
         url: url,
         method: options.method || 'GET',

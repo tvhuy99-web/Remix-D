@@ -3,7 +3,7 @@ import { GenerateContentResponse } from "@google/genai";
 import type { SillyTavernPreset } from '../types';
 import { getConnectionSettings } from './settingsService';
 import { callGeminiDirect, getGeminiClient, buildGeminiPayload } from './api/geminiApi';
-import { callOpenRouter } from './api/openRouterApi';
+import { callOpenRouter, callOpenRouterStream } from './api/openRouterApi';
 import { callProxy, callProxyStream } from './api/proxyApi';
 
 const safetySettings = [
@@ -73,11 +73,12 @@ export async function* sendChatRequestStream(
         return;
     }
 
-    // 2. Handle OpenRouter (via fallback or specific implementation if added later)
+    // 2. Handle OpenRouter Streaming
     if (source === 'openrouter') {
-        if (signal?.aborted) throw new Error("Aborted");
-        const result = await sendChatRequest(fullPrompt, settings, overrideModel, source);
-        yield { text: result.response.text || "", reasoning: result.reasoning };
+        const stream = callOpenRouterStream(targetModel, fullPrompt, settings, signal);
+        for await (const chunk of stream) {
+            yield chunk;
+        }
         return;
     }
 
