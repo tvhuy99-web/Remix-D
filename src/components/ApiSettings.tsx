@@ -828,6 +828,22 @@ export const ApiSettings: React.FC = () => {
                 )}
             </div>
 
+            {/* 3. ADVANCED GLOBAL SETTINGS */}
+            <div className="border-t border-slate-700 pt-6">
+                <h3 className="text-xl font-bold text-sky-400 mb-4">3. Cấu hình Nâng cao</h3>
+                <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 space-y-4">
+                     <ToggleInput 
+                        label="Tự động Kết nối Trực tiếp (Direct Fetch Bypass)"
+                        checked={connection.directFetchBypass ?? true}
+                        onChange={(val) => updateConnection('directFetchBypass', val)}
+                    />
+                    <p className="text-xs text-slate-400 ml-8">
+                        Bỏ qua máy chủ trung gian (proxy) đối với các API an toàn (như Google, OpenRouter) để tối ưu tốc độ và tránh lỗi timeout. 
+                        Tắt chế độ này có thể giải quyết các vấn đề CORS trên một số trình duyệt, nhưng tăng nguy cơ lỗi Timeout.
+                    </p>
+                </div>
+            </div>
+
             {/* SAVE BUTTON */}
             <div className="flex justify-end items-center gap-4 pt-4 border-t border-slate-700 sticky bottom-0 bg-slate-800/90 p-2  rounded-b-xl">
                 {saveStatus === 'saved' && <span className="text-sm text-green-400 font-bold ">Đã lưu!</span>}

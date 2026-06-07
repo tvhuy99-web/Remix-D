@@ -1,3 +1,5 @@
+import { getConnectionSettings } from '../settingsService';
+
 export const forwardFetch = async (
     url: string,
     options: RequestInit & { body?: any }
@@ -8,12 +10,14 @@ export const forwardFetch = async (
         return fetch(url, options as RequestInit);
     }
 
+    const { directFetchBypass } = getConnectionSettings();
+
     // Bypass proxy with direct fetch for CORS-safe public APIs to avoid 10-second edge timeouts (e.g., Netlify, Deno Deploy)
     const isPublicCorsSafeApi = 
         url.includes('openrouter.ai') || 
         url.includes('generativelanguage.googleapis.com');
 
-    if (isPublicCorsSafeApi) {
+    if (isPublicCorsSafeApi && (directFetchBypass ?? true)) {
         try {
             console.log(`[Direct Fetch] Connecting directly to public CORS-safe API: ${url}`);
             const directResponse = await fetch(url, options as RequestInit);

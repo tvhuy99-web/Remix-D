@@ -43,6 +43,7 @@ export interface GlobalConnectionSettings {
     proxy_tool_model: string; // Dùng cho Tác vụ phụ (Scan, Tóm tắt, Dịch)
     proxy_protocol: ProxyProtocol; // NEW: Protocol selection
     proxy_profile_id?: string; // NEW: Profile selection for main chat
+    directFetchBypass?: boolean; // NEW: Skip netlify edge proxy for safe URLs
 }
 
 // Global Smart Scan Configuration
@@ -113,7 +114,8 @@ const DEFAULT_CONNECTION_SETTINGS: GlobalConnectionSettings = {
     proxy_model: 'gemini-3.1-pro-preview',
     proxy_tool_model: 'gemini-3-flash-preview',
     proxy_protocol: 'openai', // Default to OpenAI standard
-    proxy_profile_id: ''
+    proxy_profile_id: '',
+    directFetchBypass: true
 };
 
 // Default Prompt extracted from previous defaultPreset
