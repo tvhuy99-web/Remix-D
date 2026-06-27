@@ -143,10 +143,15 @@ export const playNativeTts = (
     onEnd?: () => void
 ): void => {
     // Cancel any current speaking
-    window.speechSynthesis.cancel();
+    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+        window.speechSynthesis.cancel();
+    }
 
     const cleanText = sanitizeTextForSpeech(text);
-    if (!cleanText) return;
+    if (!cleanText) {
+        if (onEnd) onEnd();
+        return;
+    }
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     

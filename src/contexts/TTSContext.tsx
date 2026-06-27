@@ -64,6 +64,35 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
     const { showToast } = useToast();
 
+    // Unlock Web Speech API and AudioContext on first user interaction
+    useEffect(() => {
+        const unlock = async () => {
+            // Unlock Native TTS
+            const utterance = new SpeechSynthesisUtterance('');
+            utterance.volume = 0;
+            window.speechSynthesis.speak(utterance);
+
+            // Unlock AudioContext
+            if (!audioContextRef.current) {
+                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+            }
+            if (audioContextRef.current.state === 'suspended') {
+                await audioContextRef.current.resume();
+            }
+
+            document.removeEventListener('click', unlock);
+            document.removeEventListener('touchstart', unlock);
+        };
+
+        document.addEventListener('click', unlock);
+        document.addEventListener('touchstart', unlock);
+
+        return () => {
+            document.removeEventListener('click', unlock);
+            document.removeEventListener('touchstart', unlock);
+        };
+    }, []);
+
     // Init Audio Context lazily
     const getContext = useCallback(async () => {
         if (!audioContextRef.current) {
@@ -192,6 +221,11 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [settings]);
 
     const playImmediately = useCallback(async (text: string, voice?: string, id: string = `now-${Date.now()}`, options: TTSOptions = {}) => {
+        const provider = options.provider || settings.tts_provider;
+        const voiceToUse = voice || (provider === 'native' ? settings.tts_native_voice : settings.tts_voice);
+        const rate = options.rate !== undefined ? options.rate : settings.tts_rate;
+        const pitch = options.pitch !== undefined ? options.pitch : settings.tts_pitch;
+
         // 1. Clear Queue
         setQueue([]);
         
@@ -200,15 +234,52 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try { activeSourceRef.current.stop(); } catch(e) {}
         }
         // 3. Stop current audio (Native)
-        window.speechSynthesis.cancel();
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+            window.speechSynthesis.cancel();
+        }
 
-        setIsPlaying(false);
         setIsPaused(false);
         
-        // 4. Add to queue (it will be picked up immediately by the effect)
-        // Note: voice and options will default inside addToQueue if undefined
-        addToQueue(text, voice!, id, options);
-    }, [addToQueue]);
+        if (provider === 'native') {
+            setIsPlaying(true);
+            setCurrentPlayingId(id);
+            setIsLoading(false);
+            
+            playNativeTts(
+                text, 
+                voiceToUse, 
+                rate, 
+                pitch, 
+                () => {},
+                () => {
+                    setIsPlaying(false);
+                    setCurrentPlayingId(null);
+                }
+            );
+        } else {
+            // For Gemini, we still fetch
+            setIsLoading(true);
+            setCurrentPlayingId(id);
+            setIsPlaying(false); 
+            try {
+                // Ensure audio context is resumed synchronously during user gesture if possible
+                const ctx = await getContext();
+                if (ctx.state === 'suspended') {
+                    await ctx.resume();
+                }
+
+                const buffer = await fetchTtsBuffer(text, voiceToUse);
+                setIsLoading(false);
+                await playBuffer(buffer, id);
+            } catch (error) {
+                console.error("TTS Immediate Error:", error);
+                showToast(`Lỗi đọc: ${error instanceof Error ? error.message : String(error)}`, 'error');
+                setIsLoading(false);
+                setCurrentPlayingId(null);
+                setIsPlaying(false);
+            }
+        }
+    }, [settings, getContext, playBuffer, showToast]);
 
     const togglePause = useCallback(async () => {
         const ctx = await getContext();
@@ -250,7 +321,9 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const stopAll = useCallback(() => {
         setQueue([]);
-        window.speechSynthesis.cancel();
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+            window.speechSynthesis.cancel();
+        }
         if (activeSourceRef.current) {
             try { activeSourceRef.current.stop(); } catch(e) {}
         }
