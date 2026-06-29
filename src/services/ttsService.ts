@@ -128,10 +128,19 @@ export const fetchTtsBuffer = async (text: string, voiceName: string = 'Kore'): 
 
 // --- NATIVE TTS UTILS ---
 
-export const getVietnameseVoices = (): SpeechSynthesisVoice[] => {
+// Keep global reference to prevent Chrome garbage collection bug
+let currentUtterance: SpeechSynthesisUtterance | null = null;
+
+export const getNativeVoices = (): SpeechSynthesisVoice[] => {
     const voices = window.speechSynthesis.getVoices();
-    // Filter strictly for Vietnamese
-    return voices.filter(v => v.lang.includes('vi'));
+    // Sort Vietnamese voices to the top
+    return voices.sort((a, b) => {
+        const aIsVi = a.lang.includes('vi');
+        const bIsVi = b.lang.includes('vi');
+        if (aIsVi && !bIsVi) return -1;
+        if (!aIsVi && bIsVi) return 1;
+        return a.name.localeCompare(b.name);
+    });
 };
 
 export const playNativeTts = (
@@ -154,6 +163,7 @@ export const playNativeTts = (
     }
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
+    currentUtterance = utterance; // Prevent GC
     
     const voices = window.speechSynthesis.getVoices();
     const selectedVoice = voices.find(v => v.voiceURI === voiceUri);
@@ -161,7 +171,7 @@ export const playNativeTts = (
     if (selectedVoice) {
         utterance.voice = selectedVoice;
     } else {
-        // Fallback: try to find any Vietnamese voice if specific one not found
+        // Fallback: try to find any Vietnamese voice, else use default
         const fallback = voices.find(v => v.lang.includes('vi'));
         if (fallback) utterance.voice = fallback;
     }
@@ -173,14 +183,19 @@ export const playNativeTts = (
     
     utterance.onend = () => {
         if (onEnd) onEnd();
+        currentUtterance = null; // Clean up
     };
 
     utterance.onerror = (e) => {
-        console.error("Native TTS Error:", e);
+        console.error("Native TTS Error:", e.error || e);
         if (onEnd) onEnd();
+        currentUtterance = null; // Clean up
     };
 
-    window.speechSynthesis.speak(utterance);
+    // Delay speak slightly to avoid Chrome cancel bug
+    setTimeout(() => {
+        window.speechSynthesis.speak(utterance);
+    }, 50);
 };
 
 

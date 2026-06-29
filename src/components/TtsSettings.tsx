@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { AVAILABLE_VOICES, playTextToSpeech, playNativeTts, getVietnameseVoices } from '../services/ttsService';
+import { AVAILABLE_VOICES, playTextToSpeech, playNativeTts, getNativeVoices } from '../services/ttsService';
 import { useToast } from './ToastSystem';
 import { ToggleInput } from './ui/ToggleInput';
 import { SelectInput } from './ui/SelectInput';
@@ -17,7 +17,7 @@ export const TtsSettings: React.FC = () => {
     // Load native voices on mount
     useEffect(() => {
         const loadVoices = () => {
-            const voices = getVietnameseVoices();
+            const voices = getNativeVoices();
             setNativeVoices(voices);
         };
         
@@ -92,7 +92,7 @@ export const TtsSettings: React.FC = () => {
                 {isNative ? (
                     <div className="space-y-4 border-l-2 border-slate-600 pl-4">
                         {nativeVoices.length === 0 ? (
-                            <p className="text-xs text-amber-400">Không tìm thấy giọng Tiếng Việt trong trình duyệt.</p>
+                            <p className="text-xs text-amber-400">Không tìm thấy giọng đọc nào trong trình duyệt. Vui lòng kiểm tra lại thiết bị.</p>
                         ) : (
                             <SelectInput 
                                 label="Giọng Đọc Trình Duyệt"
