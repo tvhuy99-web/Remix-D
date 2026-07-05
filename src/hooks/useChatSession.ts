@@ -301,8 +301,7 @@ export const useChatSession = (sessionId: string | null) => {
     }, [presets, setSessionData]);
 
     const changePersona = useCallback(async (personaId: string) => {
-        const newPersona = personas.find(p => p.id === personaId);
-        if (!newPersona) return;
+        const newPersona = personaId ? personas.find(p => p.id === personaId) || null : null;
 
         setSessionData({
             persona: newPersona
@@ -313,7 +312,7 @@ export const useChatSession = (sessionId: string | null) => {
         if (state.sessionId) {
             const session = await dbService.getChatSession(state.sessionId);
             if (session) {
-                session.userPersonaId = personaId;
+                session.userPersonaId = personaId || null;
                 await dbService.saveChatSession(session);
             }
         }

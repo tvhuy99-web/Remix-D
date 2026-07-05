@@ -450,6 +450,18 @@ const QuickConfigModal: React.FC<{
                 <div className="space-y-1">
                      <label className="text-[10px] font-bold text-emerald-400 uppercase mb-2 block">Persona (Hồ sơ)</label>
                      <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-1 pr-1">
+                        <button
+                            onClick={() => { if(onPersonaChange) onPersonaChange(""); onClose(); }}
+                            className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-medium  flex items-center justify-between ${
+                                !activePersonaId 
+                                ? 'bg-emerald-900/30 text-emerald-100 border border-emerald-500/30' 
+                                : 'text-slate-400 hover:bg-slate-700 hover:text-white border border-transparent'
+                            }`}
+                            aria-label="Không chọn hồ sơ nào"
+                        >
+                            <span className="truncate italic">-- Không chọn --</span>
+                            {!activePersonaId && <span className="text-[8px] text-emerald-400">●</span>}
+                        </button>
                         {personas.map(persona => (
                             <button
                                 key={persona.id}
