@@ -45,7 +45,6 @@ jobs:
             test "${parts[$i]}" = "$expected"
           done
 
-          sha256sum -c SHA256SUMS
           cat "${parts[@]}" > source.patch.u15
           test "$(wc -c < source.patch.u15)" -eq 1035087
           echo '070e83ccc9e0b3141feabeccfeccfb07ab71773c4f12739b3197d3af5e45a799  source.patch.u15' | sha256sum -c -
