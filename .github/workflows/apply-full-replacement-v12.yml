@@ -39,18 +39,40 @@ jobs:
           cd payload/.payload-v12
 
           mapfile -t parts < <(printf '%s\n' part-[0-9][0-9][0-9] | sort)
-          test "${#parts[@]}" -eq 44
-          for i in $(seq 0 43); do
+          test "${#parts[@]}" -eq 70
+          for i in $(seq 0 69); do
             expected=$(printf 'part-%03d' "$i")
             test "${parts[$i]}" = "$expected"
           done
 
           sha256sum -c SHA256SUMS
-          cat "${parts[@]}" > source.patch.b64
-          test "$(wc -c < source.patch.b64)" -eq 862572
-          echo 'efecb27e21f7bdd5407d14407859fffa06278f8f5c7717b6e67006442bf016e4  source.patch.b64' | sha256sum -c -
+          cat "${parts[@]}" > source.patch.u15
+          test "$(wc -c < source.patch.u15)" -eq 1035087
+          echo '070e83ccc9e0b3141feabeccfeccfb07ab71773c4f12739b3197d3af5e45a799  source.patch.u15' | sha256sum -c -
 
-          base64 --decode source.patch.b64 > source.patch.xz
+          python3 - <<'PY'
+          from pathlib import Path
+
+          encoded = Path('source.patch.u15').read_text(encoding='utf-8')
+          assert len(encoded) == 345029
+          expected_size = 646928
+          accumulator = 0
+          bit_count = 0
+          decoded = bytearray()
+
+          for char in encoded:
+              value = ord(char) - 0x3400
+              assert 0 <= value < 32768
+              accumulator = (accumulator << 15) | value
+              bit_count += 15
+              while bit_count >= 8:
+                  bit_count -= 8
+                  decoded.append((accumulator >> bit_count) & 0xff)
+                  accumulator &= (1 << bit_count) - 1 if bit_count else 0
+
+          Path('source.patch.xz').write_bytes(bytes(decoded[:expected_size]))
+          PY
+
           test "$(wc -c < source.patch.xz)" -eq 646928
           echo 'aa60821d1669e9be84e8badcbbb7ff50aaab25ab0f5d104938a99ae547fa6b1d  source.patch.xz' | sha256sum -c -
 
