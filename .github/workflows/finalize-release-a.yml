@@ -1,0 +1,49 @@
+name: Finalize release A replacement
+
+on:
+  push:
+    branches:
+      - agent/finalize-release-a
+    paths:
+      - .replacement-release-a/FINALIZE
+
+permissions:
+  contents: write
+
+concurrency:
+  group: finalize-release-a-replacement
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    env:
+      BASE_COMMIT: 46010bf28bf38095b271f9889efab43f7b2f9d67
+      TARGET_TREE: 274d804e491d56063ef3c2e63029c5dad531e091
+      RESULT_BRANCH: agent/release-a-result
+    steps:
+      - name: Checkout trigger branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify result and replace main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat .replacement-release-a/FINALIZE)" = "publish-${TARGET_TREE}"
+
+          git fetch origin main "${RESULT_BRANCH}"
+          test "$(git rev-parse origin/main)" = "${BASE_COMMIT}"
+
+          result_commit="$(git rev-parse "origin/${RESULT_BRANCH}")"
+          result_tree="$(git rev-parse "${result_commit}^{tree}")"
+          echo "Result commit: ${result_commit}"
+          echo "Result tree: ${result_tree}"
+          test "${result_tree}" = "${TARGET_TREE}"
+
+          git show "${result_commit}:package.json" | grep -Eq '"version"[[:space:]]*:[[:space:]]*"1\.3\.0"'
+          git show "${result_commit}:src/components/PromptEditor.tsx" | grep -Fq 'aria-labelledby={promptHeadingId}'
+          git show "${result_commit}:src/components/PromptEditor.tsx" | grep -Fq 'whitespace-pre-wrap break-words'
+
+          git push --force origin "${result_commit}:refs/heads/main"
