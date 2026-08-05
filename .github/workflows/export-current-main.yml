@@ -1,0 +1,30 @@
+name: Export current main
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+      - name: Pack repository
+        run: |
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
+            --exclude=.git -cJf /tmp/current-main.tar.xz .
+          sha256sum /tmp/current-main.tar.xz
+      - name: Upload current tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: current-main-tree
+          path: /tmp/current-main.tar.xz
+          if-no-files-found: error
+          retention-days: 1
