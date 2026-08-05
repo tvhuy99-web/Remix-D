@@ -1,0 +1,79 @@
+name: Build replacement from release A
+
+on:
+  push:
+    branches:
+      - agent/apply-release-a
+    paths:
+      - .replacement-release-a/READY
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-release-a-replacement
+  cancel-in-progress: false
+
+jobs:
+  build-replacement:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BASE_COMMIT: 46010bf28bf38095b271f9889efab43f7b2f9d67
+      TARGET_TREE: 274d804e491d56063ef3c2e63029c5dad531e091
+      RESULT_BRANCH: agent/release-a-result
+    steps:
+      - name: Checkout trigger branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify trigger and unchanged main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat .replacement-release-a/READY)" = "replace-main-with-${TARGET_TREE}"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "${BASE_COMMIT}"
+
+      - name: Download release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/release-a /tmp/release-a-unpacked
+          mkdir -p /tmp/release-a /tmp/release-a-unpacked
+          gh release download A --repo "${GITHUB_REPOSITORY}" --dir /tmp/release-a --pattern '*.zip'
+          mapfile -t zip_files < <(find /tmp/release-a -maxdepth 1 -type f -iname '*.zip' -print)
+          test "${#zip_files[@]}" -eq 1
+          unzip -q "${zip_files[0]}" -d /tmp/release-a-unpacked
+
+          mapfile -t manifests < <(find /tmp/release-a-unpacked -mindepth 1 -maxdepth 2 -type f -name package.json -print)
+          test "${#manifests[@]}" -eq 1
+          project_root="$(dirname "${manifests[0]}")"
+          printf '%s\n' "${project_root}" > /tmp/project-root
+
+          grep -Eq '"version"[[:space:]]*:[[:space:]]*"1\.3\.0"' "${project_root}/package.json"
+          test -f "${project_root}/src/components/PromptEditor.tsx"
+          grep -Fq 'aria-labelledby={promptHeadingId}' "${project_root}/src/components/PromptEditor.tsx"
+          grep -Fq 'whitespace-pre-wrap break-words' "${project_root}/src/components/PromptEditor.tsx"
+
+      - name: Build exact replacement commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_root="$(cat /tmp/project-root)"
+          rm -rf "${project_root}/.git"
+
+          git checkout --detach "${BASE_COMMIT}"
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a "${project_root}/." .
+
+          git add -A
+          generated_tree="$(git write-tree)"
+          echo "Generated tree: ${generated_tree}"
+          test "${generated_tree}" = "${TARGET_TREE}"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'release: replace repository with version 1.3.0 from release A'
+          git push --force origin "HEAD:refs/heads/${RESULT_BRANCH}"
