@@ -6,9 +6,11 @@ on:
       - main
     paths:
       - .release-a-main/READY
+  workflow_dispatch:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: release-a-main-replacement
@@ -17,38 +19,56 @@ concurrency:
 jobs:
   replace-main:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout triggering main commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Report workflow start
+        shell: bash
+        run: |
+          set -euo pipefail
+          issue_number="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/issues" \
+            -f title='Release A replacement status' \
+            -f body="Workflow started for commit ${GITHUB_SHA}. It will download the ZIP asset from release A, verify target tree 274d804e491d56063ef3c2e63029c5dad531e091, and replace main." \
+            --jq '.number')"
+          echo "STATUS_ISSUE=${issue_number}" >> "${GITHUB_ENV}"
+
       - name: Verify trigger and lock main
         shell: bash
         run: |
           set -euo pipefail
-          test "$(cat .release-a-main/READY)" = "replace-main-with-release-A"
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            test "$(cat .release-a-main/READY)" = "replace-main-with-release-A-v2"
+          fi
           git fetch origin main
           test "$(git rev-parse origin/main)" = "${GITHUB_SHA}"
 
       - name: Resolve and download the release ZIP
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/A" \
-            > /tmp/release.json
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/A" > /tmp/release.json
 
-          mapfile -t zip_assets < <(jq -r '.assets[] | select(.name | ascii_downcase | endswith(".zip")) | [.name, .browser_download_url] | @tsv' /tmp/release.json)
-          test "${#zip_assets[@]}" -eq 1
-          IFS=$'\t' read -r asset_name asset_url <<< "${zip_assets[0]}"
-          echo "Downloading ${asset_name}"
+          preferred='SillyTavern-Card-Studio-1.3.0-preset-heading-fix.zip'
+          asset_record="$(jq -r --arg preferred "${preferred}" '
+            ([.assets[] | select(.name == $preferred)] + [.assets[] | select(.name | ascii_downcase | endswith(".zip"))])
+            | unique_by(.id)
+            | sort_by(.size)
+            | reverse
+            | .[0]
+            | select(. != null)
+            | [.name, .browser_download_url, (.size | tostring)]
+            | @tsv
+          ' /tmp/release.json)"
+          test -n "${asset_record}"
+          IFS=$'\t' read -r asset_name asset_url asset_size <<< "${asset_record}"
+          echo "Downloading ${asset_name} (${asset_size} bytes)"
           curl -fL --retry 3 --retry-delay 2 "${asset_url}" -o /tmp/release-a.zip
+          test "$(stat -c '%s' /tmp/release-a.zip)" = "${asset_size}"
           unzip -t /tmp/release-a.zip >/dev/null
 
       - name: Replace repository contents
@@ -90,3 +110,17 @@ jobs:
           new_commit="$(printf '%s\n' 'release: replace repository with version 1.3.0' | git commit-tree "${tree_sha}" -p "${GITHUB_SHA}")"
           echo "Replacement commit: ${new_commit}"
           git push origin "${new_commit}:refs/heads/main"
+          echo "REPLACEMENT_COMMIT=${new_commit}" >> "${GITHUB_ENV}"
+
+      - name: Report success
+        if: success()
+        shell: bash
+        run: |
+          gh issue comment "${STATUS_ISSUE}" --body "Replacement succeeded. Main now points to commit ${REPLACEMENT_COMMIT}, with verified tree 274d804e491d56063ef3c2e63029c5dad531e091."
+          gh issue close "${STATUS_ISSUE}" --reason completed
+
+      - name: Report failure
+        if: failure() && env.STATUS_ISSUE != ''
+        shell: bash
+        run: |
+          gh issue comment "${STATUS_ISSUE}" --body "Replacement failed in workflow run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Main was not replaced by the target tree."
