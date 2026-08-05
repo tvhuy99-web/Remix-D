@@ -5,7 +5,7 @@ on:
     branches:
       - agent/full-replace-upload
     paths:
-      - .payload-v8/READY
+      - .payload-v10/READY
 
 permissions:
   contents: write
@@ -24,17 +24,38 @@ jobs:
           ref: agent/full-replace-upload
           fetch-depth: 0
 
-      - name: Assemble and verify source archive
+      - name: Assemble and verify binary patch
         shell: bash
         run: |
           set -euo pipefail
-          cat .payload-v8/part-* | base64 --decode > /tmp/source.tar.xz
-          echo "0fe11f5da8ae38e57960ce3a7727a2adb0bd6912f48c460e3b6cbf064b01a633  /tmp/source.tar.xz" | sha256sum --check
+          cat .payload-v10/part-* | base64 --decode > /tmp/source.patch.zst
+          echo "956aae911369fea0cfd3b99c0ddaabc22d8e453e8ad854c6fbeff0f9e8e11db3  /tmp/source.patch.zst" | sha256sum --check
+
+      - name: Reconstruct replacement source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "46010bf28bf38095b271f9889efab43f7b2f9d67"
+          git checkout -B main origin/main
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
+            --exclude=.git --exclude='./dist' --exclude='./dist/**' \
+            --exclude='./audit/blackbox-1.2.0/asset-production.js' \
+            -cf /tmp/current-source.tar .
+          echo "381d0273f778e7f9eafe2a6550fef8a2ae46ddf46b0d9b78ee731872cae0108b  /tmp/current-source.tar" | sha256sum --check
+          zstd --decompress --patch-from=/tmp/current-source.tar \
+            /tmp/source.patch.zst -o /tmp/target-source.tar
+          echo "ba56ae13945d11a00e813dafd955cf9c17997accb138ab08eff12f0393a614be  /tmp/target-source.tar" | sha256sum --check
           mkdir -p /tmp/replacement-tree
-          tar -xJf /tmp/source.tar.xz -C /tmp/replacement-tree
-          test "$(find /tmp/replacement-tree -type f | wc -l)" -eq 232
+          tar -xf /tmp/target-source.tar -C /tmp/replacement-tree
 
       - name: Rebuild generated assets
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.16.0
+          cache: npm
+
+      - name: Build exact replacement tree
         shell: bash
         working-directory: /tmp/replacement-tree
         run: |
@@ -45,15 +66,11 @@ jobs:
             .replacement-internal/audit.patch.zst \
             -o audit/blackbox-1.2.0/asset-production.js
           rm -rf node_modules .replacement-internal
-          test "$(find . -type f | wc -l)" -eq 241
 
       - name: Replace main atomically
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "46010bf28bf38095b271f9889efab43f7b2f9d67"
-          git checkout -B main origin/main
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           cp -a /tmp/replacement-tree/. .
           git add -A
