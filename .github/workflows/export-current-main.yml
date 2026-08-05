@@ -5,7 +5,7 @@ on:
     branches:
       - agent/full-replace-upload
     paths:
-      - .payload-v6/READY
+      - .payload-v8/READY
 
 permissions:
   contents: write
@@ -28,10 +28,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .payload-v6/part-* | base64 --decode > /tmp/source.tar.zst
-          echo "c95bccfffd57a1df83c24a1fa7ffe966746dfa23437c73e5aa8d4211afc5eaf7  /tmp/source.tar.zst" | sha256sum --check
+          cat .payload-v8/part-* | base64 --decode > /tmp/source.tar.xz
+          echo "0fe11f5da8ae38e57960ce3a7727a2adb0bd6912f48c460e3b6cbf064b01a633  /tmp/source.tar.xz" | sha256sum --check
           mkdir -p /tmp/replacement-tree
-          tar --zstd -xf /tmp/source.tar.zst -C /tmp/replacement-tree
+          tar -xJf /tmp/source.tar.xz -C /tmp/replacement-tree
+          test "$(find /tmp/replacement-tree -type f | wc -l)" -eq 232
 
       - name: Rebuild generated assets
         shell: bash
@@ -51,6 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main
+          test "$(git rev-parse origin/main)" = "46010bf28bf38095b271f9889efab43f7b2f9d67"
           git checkout -B main origin/main
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           cp -a /tmp/replacement-tree/. .
