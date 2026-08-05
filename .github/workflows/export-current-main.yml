@@ -5,7 +5,7 @@ on:
     branches:
       - agent/full-replace-upload
     paths:
-      - .payload-v4/READY
+      - .payload-v6/READY
 
 permissions:
   contents: write
@@ -24,15 +24,27 @@ jobs:
           ref: agent/full-replace-upload
           fetch-depth: 0
 
-      - name: Assemble and verify replacement archive
+      - name: Assemble and verify source archive
         shell: bash
         run: |
           set -euo pipefail
-          cat .payload-v4/part-* | base64 --decode > /tmp/full.tar.zst
-          echo "c69fd783076a46aa09128d0b5607a57a90ca9fe6efe1d70f723e60942fcc2901  /tmp/full.tar.zst" | sha256sum --check
+          cat .payload-v6/part-* | base64 --decode > /tmp/source.tar.zst
+          echo "c95bccfffd57a1df83c24a1fa7ffe966746dfa23437c73e5aa8d4211afc5eaf7  /tmp/source.tar.zst" | sha256sum --check
           mkdir -p /tmp/replacement-tree
-          tar --zstd -xf /tmp/full.tar.zst -C /tmp/replacement-tree
-          test "$(find /tmp/replacement-tree -type f | wc -l)" -eq 241
+          tar --zstd -xf /tmp/source.tar.zst -C /tmp/replacement-tree
+
+      - name: Rebuild generated assets
+        shell: bash
+        working-directory: /tmp/replacement-tree
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+          zstd --decompress --patch-from=dist/assets/index-B4erEXO1.js \
+            .replacement-internal/audit.patch.zst \
+            -o audit/blackbox-1.2.0/asset-production.js
+          rm -rf node_modules .replacement-internal
+          test "$(find . -type f | wc -l)" -eq 241
 
       - name: Replace main atomically
         shell: bash
