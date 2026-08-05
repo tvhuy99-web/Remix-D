@@ -39,8 +39,8 @@ jobs:
           cd payload/.payload-v12
 
           mapfile -t parts < <(printf '%s\n' part-[0-9][0-9][0-9] | sort)
-          test "${#parts[@]}" -eq 18
-          for i in $(seq 0 17); do
+          test "${#parts[@]}" -eq 44
+          for i in $(seq 0 43); do
             expected=$(printf 'part-%03d' "$i")
             test "${parts[$i]}" = "$expected"
           done
