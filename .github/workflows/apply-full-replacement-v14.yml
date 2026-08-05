@@ -62,7 +62,7 @@ jobs:
           npm ci
           npm run build
           test -f dist/assets/index-B4erEXO1.js
-          echo '39ac014e8267a15a4a3545f4c3dc195559c2ce74965e2e04576a2871fa2b014c  dist/assets/index-B4erEXO1.js' | sha256sum -c -
+          echo 'cd9316d3fac0535f81642e68b87b67423c40c639e60f5a5f174d75b69ef6c865  dist/assets/index-B4erEXO1.js' | sha256sum -c -
 
       - name: Restore audit production snapshot
         shell: bash
@@ -71,7 +71,7 @@ jobs:
           command -v zstd >/dev/null || { sudo apt-get update && sudo apt-get install -y zstd; }
           mkdir -p audit/blackbox-1.2.0
           zstd --decompress --patch-from=dist/assets/index-B4erEXO1.js /tmp/audit.patch.zst -o audit/blackbox-1.2.0/asset-production.js
-          echo '28b5f9fb13ad8856c0cc40ece7e10eb51fb18894841fe53d63935a5828713986  audit/blackbox-1.2.0/asset-production.js' | sha256sum -c -
+          echo '78bf3ab4d10a890da795b3b116b1ee70ff56aaad4c1500d38b6eb0ebb73a27a5  audit/blackbox-1.2.0/asset-production.js' | sha256sum -c -
 
       - name: Verify and publish one atomic commit
         shell: bash
