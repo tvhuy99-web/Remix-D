@@ -1,0 +1,85 @@
+name: Apply full replacement v12
+
+on:
+  push:
+    branches:
+      - agent/full-replace-v12
+    paths:
+      - .payload-v12/READY
+
+permissions:
+  contents: write
+
+concurrency:
+  group: full-replace-main-v12
+  cancel-in-progress: false
+
+jobs:
+  replace-main:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout payload branch
+        uses: actions/checkout@v4
+        with:
+          path: payload
+          fetch-depth: 1
+
+      - name: Checkout locked main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: work
+          fetch-depth: 0
+
+      - name: Assemble and verify payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd payload/.payload-v12
+
+          mapfile -t parts < <(printf '%s\n' part-[0-9][0-9][0-9] | sort)
+          test "${#parts[@]}" -eq 18
+          for i in $(seq 0 17); do
+            expected=$(printf 'part-%03d' "$i")
+            test "${parts[$i]}" = "$expected"
+          done
+
+          sha256sum -c SHA256SUMS
+          cat "${parts[@]}" > source.patch.b64
+          test "$(wc -c < source.patch.b64)" -eq 862572
+          echo 'efecb27e21f7bdd5407d14407859fffa06278f8f5c7717b6e67006442bf016e4  source.patch.b64' | sha256sum -c -
+
+          base64 --decode source.patch.b64 > source.patch.xz
+          test "$(wc -c < source.patch.xz)" -eq 646928
+          echo 'aa60821d1669e9be84e8badcbbb7ff50aaab25ab0f5d104938a99ae547fa6b1d  source.patch.xz' | sha256sum -c -
+
+          xz --decompress --stdout source.patch.xz > source.patch
+          test "$(wc -c < source.patch)" -eq 3739301
+          echo '41cb4d446b0fa056a61ecc024dad2b95eebbf91b890856c249a4461686994238  source.patch' | sha256sum -c -
+
+      - name: Apply replacement with commit and tree gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd work
+
+          expected_base='46010bf28bf38095b271f9889efab43f7b2f9d67'
+          expected_tree='274d804e491d56063ef3c2e63029c5dad531e091'
+          actual_base=$(git rev-parse HEAD)
+          test "$actual_base" = "$expected_base"
+
+          git apply --check --binary ../payload/.payload-v12/source.patch
+          git apply --index --binary ../payload/.payload-v12/source.patch
+
+          actual_tree=$(git write-tree)
+          test "$actual_tree" = "$expected_tree"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: replace main with verified Card Studio 1.3.0 source'
+
+          committed_tree=$(git show -s --format=%T HEAD)
+          test "$committed_tree" = "$expected_tree"
+
+          git push origin HEAD:main
