@@ -1,30 +1,50 @@
-name: Export current main
+name: Apply complete replacement
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches:
+      - agent/full-replace-upload
+    paths:
+      - .payload-v4/READY
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: complete-replacement-main
+  cancel-in-progress: false
 
 jobs:
-  export:
+  replace-main:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out current main
+      - name: Check out replacement carrier branch
         uses: actions/checkout@v4
         with:
-          ref: main
-          fetch-depth: 1
-      - name: Pack repository
+          ref: agent/full-replace-upload
+          fetch-depth: 0
+
+      - name: Assemble and verify replacement archive
+        shell: bash
         run: |
-          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
-            --exclude=.git -cJf /tmp/current-main.tar.xz .
-          sha256sum /tmp/current-main.tar.xz
-      - name: Upload current tree
-        uses: actions/upload-artifact@v4
-        with:
-          name: current-main-tree
-          path: /tmp/current-main.tar.xz
-          if-no-files-found: error
-          retention-days: 1
+          set -euo pipefail
+          cat .payload-v4/part-* | base64 --decode > /tmp/full.tar.zst
+          echo "c69fd783076a46aa09128d0b5607a57a90ca9fe6efe1d70f723e60942fcc2901  /tmp/full.tar.zst" | sha256sum --check
+          mkdir -p /tmp/replacement-tree
+          tar --zstd -xf /tmp/full.tar.zst -C /tmp/replacement-tree
+          test "$(find /tmp/replacement-tree -type f | wc -l)" -eq 241
+
+      - name: Replace main atomically
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout -B main origin/main
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/replacement-tree/. .
+          git add -A
+          test "$(git write-tree)" = "274d804e491d56063ef3c2e63029c5dad531e091"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat: replace repository with SillyTavern Card Studio 1.3.0"
+          git push origin main
