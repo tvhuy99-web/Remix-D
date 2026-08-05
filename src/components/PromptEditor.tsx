@@ -22,24 +22,61 @@ interface PromptItemProps {
 const PromptItem: React.FC<PromptItemProps> = ({ prompt, index, onUpdate, onRemove, onEdit, movingPromptIndex, onSelectToMove, onMoveTo, onCancelMove }) => {
     const isBeingMoved = movingPromptIndex === index;
     const isMoveMode = movingPromptIndex !== null;
+    const promptName = prompt.name?.trim() || 'Lời nhắc chưa có tiêu đề';
+    const promptHeadingId = `prompt-heading-${prompt.identifier || index}`.replace(/[^a-zA-Z0-9_-]/g, '-');
+    const promptContent = prompt.content || '';
 
     return (
-        <div className={`bg-slate-800 rounded-lg border border-slate-700   ${isBeingMoved ? 'ring-2 ring-sky-500 shadow-lg' : ''} ${isMoveMode && !isBeingMoved ? 'opacity-60' : ''}`}>
-            <div className="flex items-center p-3">
-                <div className="flex items-center gap-2 flex-shrink-0 mr-4" onClick={(e) => e.stopPropagation()}>
+        <article
+            aria-labelledby={promptHeadingId}
+            className={`bg-slate-800 rounded-xl border border-slate-700 overflow-hidden ${isBeingMoved ? 'ring-2 ring-sky-500 shadow-lg' : ''} ${isMoveMode && !isBeingMoved ? 'opacity-60' : ''}`}
+        >
+            <div className="flex items-start gap-3 p-4">
+                <div className="flex items-center flex-shrink-0 pt-1" onClick={(e) => e.stopPropagation()}>
                     <ToggleInput label="" checked={prompt.enabled ?? false} onChange={v => onUpdate(index, { ...prompt, enabled: v })} clean />
                 </div>
-                <div className="flex-grow cursor-pointer overflow-hidden" onClick={(e) => { e.stopPropagation(); onEdit(index); }}>
-                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 truncate">
-                        <h3 className={`font-medium text-base flex-shrink-0 ${prompt.enabled ? 'text-slate-200' : 'text-slate-500 line-through'}`}>{prompt.name || 'Untitled Prompt'}</h3>
-                        {prompt.content && <p className="text-sm text-slate-500 truncate italic">{prompt.content.replace(/\n/g, ' ')}</p>}
+
+                <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                        <h3
+                            id={promptHeadingId}
+                            className={`text-base font-bold leading-6 ${prompt.enabled ? 'text-slate-100' : 'text-slate-500 line-through'}`}
+                        >
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); onEdit(index); }}
+                                className="rounded text-left hover:text-sky-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-800"
+                            >
+                                {promptName}
+                            </button>
+                        </h3>
+                        <span className="rounded-full border border-slate-600 bg-slate-900/60 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                            {prompt.role || 'system'}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${prompt.enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-700 text-slate-400'}`}>
+                            {prompt.enabled ? 'Đang bật' : 'Đã tắt'}
+                        </span>
+                    </div>
+
+                    <div
+                        className="mt-3 rounded-lg border border-slate-700/80 bg-slate-900/45 p-3"
+                        aria-label={`Nội dung lời nhắc ${promptName}`}
+                    >
+                        {promptContent.trim() ? (
+                            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-300">
+                                {promptContent}
+                            </p>
+                        ) : (
+                            <p className="text-sm italic text-slate-500">Lời nhắc này chưa có nội dung.</p>
+                        )}
                     </div>
                 </div>
                 
-                <div className="flex items-center ml-4 flex-shrink-0 gap-1">
+                <div className="flex items-center flex-shrink-0 gap-1">
                      {isMoveMode ? (
                         isBeingMoved ? (
                             <button 
+                                type="button"
                                 onClick={(e) => { e.stopPropagation(); onCancelMove(); }} 
                                 className="p-2 bg-red-600/50 hover:bg-red-500/50 text-white rounded-md "
                                 aria-label="Hủy di chuyển"
@@ -48,6 +85,7 @@ const PromptItem: React.FC<PromptItemProps> = ({ prompt, index, onUpdate, onRemo
                             </button>
                         ) : (
                             <button 
+                                type="button"
                                 onClick={(e) => { e.stopPropagation(); onMoveTo(index); }} 
                                 className="px-3 py-1.5 text-sm bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-md "
                                 aria-label="Di chuyển đến vị trí này"
@@ -57,6 +95,7 @@ const PromptItem: React.FC<PromptItemProps> = ({ prompt, index, onUpdate, onRemo
                         )
                     ) : (
                         <button 
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); onSelectToMove(index); }} 
                             className="p-2 text-slate-400 hover:text-sky-400 disabled:text-slate-600 disabled:cursor-not-allowed "
                             aria-label="Chọn để di chuyển"
@@ -67,24 +106,26 @@ const PromptItem: React.FC<PromptItemProps> = ({ prompt, index, onUpdate, onRemo
                     
                     {!isMoveMode && (
                         <button 
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); onEdit(index); }} 
                             className="p-2 text-slate-400 hover:text-sky-400 "
-                            aria-label={`Chỉnh sửa lời nhắc ${prompt.name}`}
+                            aria-label={`Chỉnh sửa lời nhắc ${promptName}`}
                         >
                             <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
                         </button>
                     )}
 
                     <button 
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); onRemove(index); }} 
                         className="text-slate-500 hover:text-red-400  p-1"
-                        aria-label={`Xóa lời nhắc ${prompt.name}`}
+                        aria-label={`Xóa lời nhắc ${promptName}`}
                     >
                         <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
                     </button>
                 </div>
             </div>
-        </div>
+        </article>
     );
 };
 
@@ -199,7 +240,14 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ preset, onUpdate }) 
     }, [preset, filteredPrompts, filter]);
 
     return (
-        <div className="space-y-6">
+        <section aria-labelledby="preset-prompts-heading" className="space-y-6">
+            <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-4">
+                <h2 id="preset-prompts-heading" className="text-xl font-bold text-slate-100">Lời nhắc của Preset</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                    Nội dung của từng lời nhắc được hiển thị đầy đủ bên dưới tiêu đề để dễ đọc, rà soát và điều hướng.
+                </p>
+            </div>
+
             <MacroReference />
             
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-2 bg-slate-800/50 rounded-lg">
@@ -208,7 +256,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ preset, onUpdate }) 
                     <FilterButton filter="enabled" currentFilter={filter} onClick={setFilter} label="Đã bật" />
                     <FilterButton filter="disabled" currentFilter={filter} onClick={setFilter} label="Đã tắt" />
                 </div>
-                 <button onClick={handleExportFilteredPrompts} disabled={filteredPrompts.length === 0} className="flex items-center gap-2 px-4 py-1.5 text-sm font-semibold rounded-md   focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 text-sky-300 bg-sky-800/50 hover:bg-sky-700/60 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed">
+                 <button type="button" onClick={handleExportFilteredPrompts} disabled={filteredPrompts.length === 0} className="flex items-center gap-2 px-4 py-1.5 text-sm font-semibold rounded-md   focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 text-sky-300 bg-sky-800/50 hover:bg-sky-700/60 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed">
                      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                     <span>Xuất theo bộ lọc</span>
                 </button>
@@ -232,13 +280,13 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ preset, onUpdate }) 
                 {filteredPrompts.length === 0 && <div className="text-center py-8 text-slate-500"><p>Không có lời nhắc nào khớp với bộ lọc này.</p></div>}
             </div>
 
-            <button onClick={handleAddPrompt} className="w-full bg-slate-700 hover:bg-slate-600 text-sky-400 font-semibold py-3 px-4 rounded-lg   flex items-center justify-center gap-2 border border-slate-600">
+            <button type="button" onClick={handleAddPrompt} className="w-full bg-slate-700 hover:bg-slate-600 text-sky-400 font-semibold py-3 px-4 rounded-lg   flex items-center justify-center gap-2 border border-slate-600">
                 <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" /></svg>
                 <span>Thêm Lời nhắc Mới</span>
             </button>
             
             <PromptEditModal isOpen={editingPromptIndex !== null} prompt={editingPromptIndex !== null ? prompts[editingPromptIndex] : null} onSave={handleSavePrompt} onClose={handleCloseEditModal} />
             <FinalPromptPreview prompts={prompts} />
-        </div>
+        </section>
     );
 };
