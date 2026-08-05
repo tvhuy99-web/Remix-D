@@ -1,0 +1,92 @@
+name: Apply release A replacement on main
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .release-a-main/READY
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-a-main-replacement
+  cancel-in-progress: false
+
+jobs:
+  replace-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout triggering main commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify trigger and lock main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat .release-a-main/READY)" = "replace-main-with-release-A"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "${GITHUB_SHA}"
+
+      - name: Resolve and download the release ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/A" \
+            > /tmp/release.json
+
+          mapfile -t zip_assets < <(jq -r '.assets[] | select(.name | ascii_downcase | endswith(".zip")) | [.name, .browser_download_url] | @tsv' /tmp/release.json)
+          test "${#zip_assets[@]}" -eq 1
+          IFS=$'\t' read -r asset_name asset_url <<< "${zip_assets[0]}"
+          echo "Downloading ${asset_name}"
+          curl -fL --retry 3 --retry-delay 2 "${asset_url}" -o /tmp/release-a.zip
+          unzip -t /tmp/release-a.zip >/dev/null
+
+      - name: Replace repository contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/release-a-unpacked
+          mkdir -p /tmp/release-a-unpacked
+          unzip -q /tmp/release-a.zip -d /tmp/release-a-unpacked
+
+          mapfile -t top_entries < <(find /tmp/release-a-unpacked -mindepth 1 -maxdepth 1 -printf '%p\n')
+          test "${#top_entries[@]}" -gt 0
+          if [ "${#top_entries[@]}" -eq 1 ] && [ -d "${top_entries[0]}" ]; then
+            source_root="${top_entries[0]}"
+          else
+            source_root="/tmp/release-a-unpacked"
+          fi
+
+          test ! -e "${source_root}/.git"
+          test -f "${source_root}/package.json"
+          test -f "${source_root}/src/components/PromptEditor.tsx"
+
+          git reset --hard "${GITHUB_SHA}"
+          git clean -fdx
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a "${source_root}/." .
+
+      - name: Verify exact tree and publish one commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          tree_sha="$(git write-tree)"
+          echo "Generated target tree: ${tree_sha}"
+          test "${tree_sha}" = "274d804e491d56063ef3c2e63029c5dad531e091"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          new_commit="$(printf '%s\n' 'release: replace repository with version 1.3.0' | git commit-tree "${tree_sha}" -p "${GITHUB_SHA}")"
+          echo "Replacement commit: ${new_commit}"
+          git push origin "${new_commit}:refs/heads/main"
